@@ -59,7 +59,7 @@ h2 { font-size: 17px; margin: 0; }
 /* Totalen */
 .totals .kcal-row { display: flex; justify-content: space-between; align-items: baseline; }
 .totals .kcal-big { font-size: 30px; font-weight: 700; }
-.bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin: 6px 0 2px; }
+.bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 6px 0 2px; border: 1.5px solid rgba(255, 255, 255, .55); }
 .bar > span { display: block; height: 100%; border-radius: 4px; }
 .bar.over > span { background: var(--over) !important; }
 .macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
@@ -243,3 +243,5 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
   position: absolute; top: 0; right: 0; bottom: 0; width: 88px;
   border: 0; background: #e5383b; color: #fff; font-weight: 700; font-size: 15px;
 }
+.ring-line { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 1.5; }
+.e-kcal .e-unit { font-size: 12px; font-weight: 500; color: var(--muted); }

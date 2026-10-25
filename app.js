@@ -365,7 +365,7 @@ function renderDag() {
             <button class="e-del" data-act="delentry">Delete</button>
             <div class="e-row" data-act="editentry">
               <div><div class="e-name">${esc(e.name)} ${dominance(e.per, true)}</div><div class="e-sub">${amountLabel(e)} · C ${fmt(et.c, 1)} · P ${fmt(et.p, 1)} · F ${fmt(et.f, 1)}</div></div>
-              <div class="e-kcal">${fmt(et.k)}</div>
+              <div class="e-kcal">${fmt(et.k)} <span class="e-unit">kcal</span></div>
             </div>
           </li>`;
         }).join('')}</ul>` : ''}
@@ -419,6 +419,8 @@ function kcalRing(t, goal) {
     <svg viewBox="0 0 128 128" width="128" height="128" aria-hidden="true">
       <circle cx="64" cy="64" r="${r}" class="ring-bg ${over ? 'over' : ''}"/>
       ${arcs}
+      <circle cx="64" cy="64" r="${r + 6.75}" class="ring-line"/>
+      <circle cx="64" cy="64" r="${r - 6.75}" class="ring-line"/>
     </svg>
     <div class="ring-text"><span class="kcal-big">${fmt(val)}</span><span class="muted small">${goal ? `of ${fmt(goal)} kcal` : 'kcal'}</span></div>
   </div>`;
@@ -904,7 +906,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.5 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5.1 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
