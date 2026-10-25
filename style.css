@@ -185,8 +185,8 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 .btn.primary { background: #ffffff; color: #102349; }
 .btn.ghost { color: var(--muted); }
 .btn.danger { color: var(--danger); }
-.card { box-shadow: none; border: 1px solid var(--line); }
-.iconbtn { box-shadow: none; border: 1px solid var(--line); color: #fff; }
+.card { box-shadow: none; border: 1.2px solid var(--line); }
+.iconbtn { box-shadow: none; border: 1.2px solid var(--line); color: #fff; }
 .search, label.field input, label.field select { background: #0d1d3d; color: #fff; border-color: var(--line); }
 .search::placeholder, input::placeholder { color: #8fa1c4; }
 .tabbar { background: #0d1d3d; border-top-color: var(--line); }
@@ -195,7 +195,8 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 .seg { background: #0d1d3d; }
 .seg button { color: var(--muted); }
 .seg button.active { background: var(--card); color: #fff; }
-.brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 20px; font-weight: 500; }
+.brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 22px; font-weight: 500; }
+.brand img { width: 29px; height: 29px; border-radius: 8px; }
 .brand b { font-weight: 800; }
 .tag { background: var(--accent-soft); color: #fff; }
 .toast { background: #fff; color: #102349; font-weight: 600; }
@@ -208,3 +209,25 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 .rank-row .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .rank-row .pct { margin-left: auto; font-variant-numeric: tabular-nums; }
 .rank-row.top { color: #fff; font-weight: 700; font-size: 14px; }
+
+/* Kcal-cirkel in de dagkop */
+.totals-grid { display: flex; align-items: center; gap: 18px; }
+.ring { position: relative; width: 128px; height: 128px; flex: none; }
+.ring svg { display: block; }
+.ring-bg { fill: none; stroke: var(--line); stroke-width: 12; }
+.ring-fg { fill: none; stroke: var(--c-kcal); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .4s ease; }
+.ring-fg.over { stroke: var(--over); }
+.ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.1; }
+.ring-text .kcal-big { font-size: 28px; }
+.macros-col { flex: 1; display: grid; gap: 10px; min-width: 0; }
+.kcal-left { margin-top: 12px; text-align: center; font-weight: 700; }
+.kcal-left.over { color: var(--over); }
+
+/* Goals */
+.goal-total { text-align: center; }
+.split { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line); margin-top: 12px; }
+.split span { display: block; height: 100%; }
+.goal-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; }
+.goal-col .gname { font-weight: 800; font-size: 17px; }
+.goal-col .gpct { font-size: 30px; font-weight: 800; margin: 6px 0 8px; font-variant-numeric: tabular-nums; }
+.gsel { width: 100%; padding: 12px 6px; border-radius: 12px; border: 1.2px solid var(--line); background: #0d1d3d; color: #fff; font-size: 18px; font-weight: 700; text-align: center; text-align-last: center; margin-bottom: 6px; }

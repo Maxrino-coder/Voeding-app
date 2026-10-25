@@ -304,6 +304,7 @@ function render() {
   if (tab === 'dag') renderDag();
   else if (tab === 'week') renderWeek();
   else if (tab === 'voeding') renderVoeding();
+  else if (tab === 'goals') renderGoals();
   else renderInstellingen();
 }
 
@@ -333,18 +334,16 @@ function renderDag() {
     </div>
 
     <div class="card totals">
-      <div class="kcal-row">
-        <div><span class="kcal-big">${fmt(t.k)}</span> <span class="muted">kcal</span></div>
-        <div class="muted small" style="text-align:right">
-          ${g.k ? `goal ${fmt(g.k)}<br><strong style="color:${kcalRest < 0 ? 'var(--over)' : 'var(--text)'}">${kcalRest < 0 ? fmt(-kcalRest) + ' over goal' : fmt(kcalRest) + ' left'}</strong>` : ''}
+      <div class="totals-grid">
+        ${kcalRing(t.k, g.k)}
+        <div class="macros-col">
+          ${macroBlock('Carbs', t.c, g.c, 'var(--c-carb)')}
+          ${macroBlock('Protein', t.p, g.p, 'var(--c-prot)')}
+          ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)')}
         </div>
       </div>
-      ${bar(t.k, g.k, 'var(--c-kcal)')}
-      <div class="macros">
-        ${macroBlock('Carbs', t.c, g.c, 'var(--c-carb)')}
-        ${macroBlock('Protein', t.p, g.p, 'var(--c-prot)')}
-        ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)')}
-      </div>
+      ${g.k ? `<div class="kcal-left ${kcalRest < 0 ? 'over' : ''}">${kcalRest < 0 ? fmt(-kcalRest) + ' kcal over goal' : fmt(kcalRest) + ' kcal left'}</div>`
+        : `<button class="btn block" data-act="gotogoals" style="margin-top:12px">🎯 Set your goals</button>`}
     </div>`;
 
   for (const m of MEALS.slice(0, visibleMeals(cur))) {
@@ -393,6 +392,20 @@ function visibleMeals(k) {
   return Math.min(n, MEALS.length);
 }
 
+// Cirkel die vult naarmate je dichter bij je kcal-doel komt (half gevuld = helft van je doel).
+function kcalRing(val, goal) {
+  const r = 54, c = 2 * Math.PI * r;
+  const frac = goal ? Math.min(1, val / goal) : 0;
+  const over = goal && val > goal * 1.0001;
+  return `<div class="ring">
+    <svg viewBox="0 0 128 128" width="128" height="128" aria-hidden="true">
+      <circle cx="64" cy="64" r="${r}" class="ring-bg"/>
+      <circle cx="64" cy="64" r="${r}" class="ring-fg ${over ? 'over' : ''}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - frac)}" transform="rotate(-90 64 64)"/>
+    </svg>
+    <div class="ring-text"><span class="kcal-big">${fmt(val)}</span><span class="muted small">${goal ? `of ${fmt(goal)} kcal` : 'kcal'}</span></div>
+  </div>`;
+}
+
 function macroBlock(name, val, goal, color) {
   return `<div class="macro">
     <div class="name">${name}</div>
@@ -420,7 +433,8 @@ view.addEventListener('click', e => {
   else if (act === 'gotoday') { cur = el.dataset.day; tab = 'dag'; render(); window.scrollTo(0, 0); }
   else if (act === 'newfood') openFoodEditor(null);
   else if (act === 'editfood') openFoodEditor(getFood(el.dataset.id));
-  else if (act === 'savetargets') saveTargets();
+  else if (act === 'gotogoals') { tab = 'goals'; render(); window.scrollTo(0, 0); }
+  else if (act === 'cleargoals') { state.targets = { k: 0, c: 0, p: 0, f: 0 }; save(); render(); toast('Goals cleared'); }
   else if (act === 'export') exportData();
   else if (act === 'import') $('#importfile').click();
 });
@@ -812,17 +826,6 @@ function renderInstellingen() {
   view.innerHTML = `
     <h1>Settings</h1>
     <div class="card">
-      <h2>Daily goals</h2>
-      <p class="muted small">Optional. Leave empty what you don't want to track.</p>
-      <div class="row2">
-        <label class="field"><span>Calories (kcal)</span><input id="tk" inputmode="decimal" value="${v(g.k)}"></label>
-        <label class="field"><span>Carbs (g)</span><input id="tc" inputmode="decimal" value="${v(g.c)}"></label>
-        <label class="field"><span>Protein (g)</span><input id="tp" inputmode="decimal" value="${v(g.p)}"></label>
-        <label class="field"><span>Fat (g)</span><input id="tf" inputmode="decimal" value="${v(g.f)}"></label>
-      </div>
-      <button class="btn primary block" data-act="savetargets">Save goals</button>
-    </div>
-    <div class="card">
       <h2>Backup</h2>
       <p class="muted small">Your data is stored on this device only (${nLogged} ${nLogged === 1 ? 'day' : 'days'} logged, ${Object.keys(state.foods).length} custom/edited foods). Save a backup now and then, for example before switching phones.</p>
       <div class="meal-actions">
@@ -831,15 +834,66 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.3 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.4 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
 
-function saveTargets() {
-  const r = id => { const n = num($('#' + id).value); return isFinite(n) && n > 0 ? n : 0; };
-  state.targets = { k: r('tk'), c: r('tc'), p: r('tp'), f: r('tf') };
-  save(); toast('Goals saved');
+// ---------- Goals ----------
+const GOAL_MACROS = [
+  { key: 'c', name: 'Carbs', color: 'var(--c-carb)', kcal: 4, max: 600, step: 5 },
+  { key: 'p', name: 'Protein', color: 'var(--c-prot)', kcal: 4, max: 400, step: 5 },
+  { key: 'f', name: 'Fat', color: 'var(--c-fat)', kcal: 9, max: 250, step: 1 },
+];
+
+function renderGoals() {
+  const g = state.targets;
+  // Keuzelijst per macro; op de iPhone verschijnt die als draaiwiel.
+  const options = m => {
+    const vals = [];
+    for (let v = 0; v <= m.max; v += m.step) vals.push(v);
+    if (g[m.key] && !vals.includes(g[m.key])) vals.push(g[m.key]);
+    return vals.sort((a, b) => a - b).map(v => `<option value="${v}" ${v === (g[m.key] || 0) ? 'selected' : ''}>${v} g</option>`).join('');
+  };
+  view.innerHTML = `
+    <h1>🎯 Goals</h1>
+    <div class="card goal-total">
+      <div class="muted small">Daily calorie goal</div>
+      <div><span class="kcal-big" id="gk">0</span> <span class="muted">kcal</span></div>
+      <div class="split" id="gsplit"></div>
+    </div>
+    <div class="card">
+      <div class="goal-cols">
+        ${GOAL_MACROS.map(m => `<div class="goal-col">
+          <div class="gname" style="color:${m.color}">${m.name}</div>
+          <div class="gpct" id="pct-${m.key}">0%</div>
+          <select class="gsel" id="g-${m.key}" aria-label="${m.name} in grams">${options(m)}</select>
+          <div class="muted small" id="kc-${m.key}">0 kcal</div>
+        </div>`).join('')}
+      </div>
+      <p class="muted small" style="margin-bottom:0">Tap the grams to change them. The percentages and calories update right away: 4 kcal per gram of carbs and protein, 9 per gram of fat.</p>
+    </div>
+    ${g.k ? '<button class="btn ghost block" data-act="cleargoals">Clear goals</button>' : ''}`;
+
+  const draw = () => {
+    const kc = Object.fromEntries(GOAL_MACROS.map(m => [m.key, (state.targets[m.key] || 0) * m.kcal]));
+    const total = kc.c + kc.p + kc.f;
+    $('#gk').textContent = fmt(total);
+    for (const m of GOAL_MACROS) {
+      $('#pct-' + m.key).textContent = (total ? fmt((kc[m.key] / total) * 100) : 0) + '%';
+      $('#kc-' + m.key).textContent = fmt(kc[m.key]) + ' kcal';
+    }
+    $('#gsplit').innerHTML = total ? GOAL_MACROS.map(m => `<span style="width:${(kc[m.key] / total) * 100}%;background:${m.color}"></span>`).join('') : '';
+  };
+  for (const m of GOAL_MACROS) {
+    $('#g-' + m.key).addEventListener('change', e => {
+      const t = { ...state.targets, [m.key]: Number(e.target.value) };
+      t.k = 4 * (t.c || 0) + 4 * (t.p || 0) + 9 * (t.f || 0);
+      state.targets = t;
+      save(); draw();
+    });
+  }
+  draw();
 }
 
 async function exportData() {
