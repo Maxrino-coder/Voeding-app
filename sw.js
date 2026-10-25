@@ -1,6 +1,6 @@
 // Bewaart de app op het toestel zodat ze ook zonder internet werkt.
 // Verhoog VERSION bij elke wijziging zodat telefoons de nieuwe versie ophalen.
-const VERSION = 'v10';
+const VERSION = 'v11';
 const CACHE = 'voeding-' + VERSION;
 const FILES = [
   './',
@@ -12,6 +12,7 @@ const FILES = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'icons/header-logo.png',
 ];
 
 self.addEventListener('install', e => {
