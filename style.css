@@ -195,8 +195,8 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 .seg { background: #0d1d3d; }
 .seg button { color: var(--muted); }
 .seg button.active { background: var(--card); color: #fff; }
-.brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 22px; font-weight: 400; }
-.brand img { width: auto; height: 58px; border-radius: 0; }
+.brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 20px; font-weight: 400; gap: 10px; }
+.brand img { width: auto; height: 44px; border-radius: 0; }
 .brand b { font-weight: 800; }
 .tag { background: var(--accent-soft); color: #fff; }
 .toast { background: #fff; color: #102349; font-weight: 600; }
@@ -245,3 +245,8 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 }
 .ring-line { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 1.5; }
 .e-kcal .e-unit { font-size: 12px; font-weight: 500; color: var(--muted); }
+#view.slide-l { animation: slideL .22s ease-out; }
+#view.slide-r { animation: slideR .22s ease-out; }
+@keyframes slideL { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes slideR { from { transform: translateX(-40px); opacity: .4; } to { transform: none; opacity: 1; } }
+#view { touch-action: pan-y; }
