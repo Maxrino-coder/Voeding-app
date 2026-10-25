@@ -1,6 +1,6 @@
 // Bewaart de app op het toestel zodat ze ook zonder internet werkt.
 // Verhoog VERSION bij elke wijziging zodat telefoons de nieuwe versie ophalen.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE = 'voeding-' + VERSION;
 const FILES = [
   './',
@@ -27,10 +27,12 @@ self.addEventListener('activate', e => {
 });
 
 // Eerst het netwerk proberen (zodat updates meteen binnenkomen), anders de opgeslagen versie.
+// GitHub Pages laat browsers bestanden 10 minuten bewaren; 'no-cache' vraagt altijd na of er iets nieuws is.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const sameOrigin = new URL(e.request.url).origin === location.origin;
   e.respondWith(
-    fetch(e.request)
+    fetch(sameOrigin ? new Request(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }) : e.request)
       .then(res => {
         if (res.ok && new URL(e.request.url).origin === location.origin) {
           const copy = res.clone();
