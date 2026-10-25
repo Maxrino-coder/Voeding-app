@@ -118,6 +118,9 @@ function dayLabel(k) {
   const s = keyToDate(k).toLocaleDateString('en-GB', { weekday: 'long' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+function weekday(k) {
+  return keyToDate(k).toLocaleDateString('en-GB', { weekday: 'long' });
+}
 function longDate(k) {
   return keyToDate(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
@@ -325,12 +328,12 @@ function renderDag() {
   const kcalRest = g.k ? g.k - t.k : null;
 
   let html = `
-    <div class="brand"><img src="icons/header-logo.png" alt=""><span><b>NT</b>rition</span></div>
+    <div class="brand"><img src="icons/header-steak.png" alt=""><span><b>NT</b>rition</span></div>
     <div class="datebar">
       <button class="iconbtn" data-act="prevday" aria-label="Previous day">‹</button>
       <div class="label">
         <strong>${dayLabel(cur)}</strong>
-        <span class="muted small">${longDate(cur)}</span>
+        <span class="muted small">${['Today', 'Yesterday', 'Tomorrow'].includes(dayLabel(cur)) ? weekday(cur) + ' ' : ''}${longDate(cur)}</span>
         <input type="date" id="datepick" value="${cur}" aria-label="Pick date">
       </div>
       <button class="iconbtn" data-act="nextday" aria-label="Next day">›</button>
@@ -433,6 +436,30 @@ function macroBlock(name, val, goal, color, share) {
     ${bar(val, goal, color, share)}
   </div>`;
 }
+
+// In het dagboek: veeg naar links/rechts (buiten een item) voor de volgende/vorige dag.
+let daySwipe = null;
+view.addEventListener('touchstart', e => {
+  if (tab !== 'dag' || e.touches.length !== 1 || e.target.closest('li.swipe, input, select')) { daySwipe = null; return; }
+  const t = e.touches[0];
+  daySwipe = { x: t.clientX, y: t.clientY, dx: 0, dy: 0 };
+}, { passive: true });
+view.addEventListener('touchmove', e => {
+  if (!daySwipe) return;
+  const t = e.touches[0];
+  daySwipe.dx = t.clientX - daySwipe.x; daySwipe.dy = t.clientY - daySwipe.y;
+}, { passive: true });
+view.addEventListener('touchcancel', () => { daySwipe = null; });
+view.addEventListener('touchend', () => {
+  if (!daySwipe) return;
+  const { dx, dy } = daySwipe;
+  daySwipe = null;
+  if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+  cur = addDays(cur, dx < 0 ? 1 : -1);
+  render();
+  view.classList.remove('slide-l', 'slide-r'); void view.offsetWidth;
+  view.classList.add(dx < 0 ? 'slide-l' : 'slide-r');
+});
 
 // Swipe naar links op een item toont een rode Delete-knop.
 const SWIPE_W = 88;
@@ -906,7 +933,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.5.3 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5.4 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
