@@ -325,7 +325,7 @@ function renderDag() {
   const kcalRest = g.k ? g.k - t.k : null;
 
   let html = `
-    <div class="brand"><img src="icons/icon-192.png" alt=""><span><b>NT</b>rition</span></div>
+    <div class="brand"><img src="icons/header-logo.png" alt=""><span><b>NT</b>rition</span></div>
     <div class="datebar">
       <button class="iconbtn" data-act="prevday" aria-label="Previous day">‹</button>
       <div class="label">
@@ -906,7 +906,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.5.2 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5.3 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
