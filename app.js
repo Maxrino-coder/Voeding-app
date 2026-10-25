@@ -198,6 +198,7 @@ function foodSub(f) {
 
 function amountLabel(e) {
   if (e.unit === 'g') return `${fmt(e.qty, 1)} g`;
+  if (e.unit === '100 g') return `${fmt(entryGrams(e))} g`;
   return `${fmt(e.qty, 2)} × ${esc(e.unit)} (${fmt(entryGrams(e))} g)`;
 }
 
@@ -360,9 +361,12 @@ function renderDag() {
         ${entries.length ? mealRanking(mt) : ''}
         ${entries.length ? `<ul class="entries">${entries.map(e => {
           const et = entryTotals(e);
-          return `<li data-act="editentry" data-meal="${m.id}" data-id="${e.id}">
-            <div><div class="e-name">${esc(e.name)} ${dominance(e.per, true)}</div><div class="e-sub">${amountLabel(e)} · C ${fmt(et.c, 1)} · P ${fmt(et.p, 1)} · F ${fmt(et.f, 1)}</div></div>
-            <div class="e-kcal">${fmt(et.k)}</div>
+          return `<li class="swipe" data-meal="${m.id}" data-id="${e.id}">
+            <button class="e-del" data-act="delentry">Delete</button>
+            <div class="e-row" data-act="editentry">
+              <div><div class="e-name">${esc(e.name)} ${dominance(e.per, true)}</div><div class="e-sub">${amountLabel(e)} · C ${fmt(et.c, 1)} · P ${fmt(et.p, 1)} · F ${fmt(et.f, 1)}</div></div>
+              <div class="e-kcal">${fmt(et.k)}</div>
+            </div>
           </li>`;
         }).join('')}</ul>` : ''}
         <div class="meal-actions">
@@ -428,6 +432,46 @@ function macroBlock(name, val, goal, color, share) {
   </div>`;
 }
 
+// Swipe naar links op een item toont een rode Delete-knop.
+const SWIPE_W = 88;
+let swipe = null, swipedAt = 0;
+function closeSwipes(except) {
+  view.querySelectorAll('li.swipe.open').forEach(li => {
+    if (li === except) return;
+    li.classList.remove('open'); li.querySelector('.e-row').style.transform = '';
+  });
+}
+view.addEventListener('touchstart', e => {
+  const li = e.target.closest('li.swipe');
+  if (!li || e.target.closest('.e-del')) return;
+  const t = e.touches[0];
+  swipe = { li, row: li.querySelector('.e-row'), x: t.clientX, y: t.clientY, dx: 0, dir: null, base: li.classList.contains('open') ? -SWIPE_W : 0 };
+}, { passive: true });
+view.addEventListener('touchmove', e => {
+  if (!swipe) return;
+  const t = e.touches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  if (!swipe.dir) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    swipe.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+    if (swipe.dir === 'h') { closeSwipes(swipe.li); swipe.row.style.transition = 'none'; }
+  }
+  if (swipe.dir !== 'h') return;
+  e.preventDefault();
+  swipe.dx = dx;
+  const x = Math.max(-SWIPE_W - 30, Math.min(0, swipe.base + dx));
+  swipe.row.style.transform = `translateX(${x}px)`;
+}, { passive: false });
+view.addEventListener('touchend', () => {
+  if (!swipe) return;
+  const s = swipe; swipe = null;
+  if (s.dir !== 'h') return;
+  s.row.style.transition = '';
+  const open = s.base + s.dx < -SWIPE_W / 2;
+  s.li.classList.toggle('open', open);
+  s.row.style.transform = open ? `translateX(${-SWIPE_W}px)` : '';
+  swipedAt = Date.now();
+});
+
 view.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -436,8 +480,17 @@ view.addEventListener('click', e => {
   else if (act === 'nextday') { cur = addDays(cur, 1); render(); }
   else if (act === 'add') openAdd(el.dataset.meal);
   else if (act === 'editentry') {
-    const entry = mealEntries(cur, el.dataset.meal).find(x => x.id === el.dataset.id);
-    if (entry) openQty({ entry, meal: el.dataset.meal });
+    const li = el.closest('li');
+    if (li.classList.contains('open')) { closeSwipes(); return; }
+    const entry = mealEntries(cur, li.dataset.meal).find(x => x.id === li.dataset.id);
+    if (entry) openQty({ entry, meal: li.dataset.meal });
+  }
+  else if (act === 'delentry') {
+    const li = el.closest('li');
+    const list = dayLog(cur, true)[li.dataset.meal];
+    const i = list.findIndex(x => x.id === li.dataset.id);
+    if (i >= 0) list.splice(i, 1);
+    save(); render(); toast('Deleted');
   }
   else if (act === 'addmeal') { extraMeals[cur] = visibleMeals(cur) + 1; render(); }
   else if (act === 'copymeal') openCopy(el.dataset.meal);
@@ -527,10 +580,12 @@ function openQty({ food, entry, meal, back }) {
   // Bij bewerken: neem de actuele gegevens van het voedingsmiddel als het nog bestaat, anders de opgeslagen kopie.
   const f = food || getFood(entry.foodId) || { id: entry.foodId, name: entry.name, brand: entry.brand, ...entry.per, portions: [] };
   const per = editing ? entry.per : { k: f.k, c: f.c, p: f.p, f: f.f };
-  const units = [{ n: 'g', g: 1, label: 'grams' }].concat((f.portions || []).map(p => ({ n: p.n, g: p.g, label: `${p.n} (${fmt(p.g)} g)` })));
+  const units = [{ n: 'g', g: 1, label: 'grams' }, { n: '100 g', g: 100, label: '× 100 g' }].concat((f.portions || []).map(p => ({ n: p.n, g: p.g, label: `${p.n} (${fmt(p.g)} g)` })));
   if (editing && !units.some(u => u.n === entry.unit)) units.push({ n: entry.unit, g: entry.ug, label: `${entry.unit} (${fmt(entry.ug)} g)` });
 
-  let unit = editing ? entry.unit : (units[1] ? units[1].n : 'g');
+  // Nieuw item: laatst gebruikte eenheid van dit voedingsmiddel, anders portie of gram.
+  const lastUnit = (state.units || {})[f.id];
+  let unit = editing ? entry.unit : units.some(u => u.n === lastUnit) ? lastUnit : (units[2] ? units[2].n : 'g');
   let qty = editing ? entry.qty : (unit === 'g' ? 100 : 1);
   const fav = state.favs.includes(f.id);
 
@@ -576,7 +631,7 @@ function openQty({ food, entry, meal, back }) {
     const q = num(qtyEl.value);
     if (isFinite(q)) {
       const nq = (q * prevG) / ug();
-      qtyEl.value = fmt(unitEl.value === 'g' ? Math.round(nq) : Math.round(nq * 4) / 4, 2);
+      qtyEl.value = fmt(unitEl.value === 'g' ? Math.round(nq) : unitEl.value === '100 g' ? Math.round(nq * 100) / 100 : Math.round(nq * 4) / 4, 2);
     }
     unit = unitEl.value;
     draw();
@@ -612,6 +667,7 @@ function openQty({ food, entry, meal, back }) {
         foodId: f.id, name: f.name, brand: f.brand || '',
         per, qty: q, unit: unitEl.value, ug: ug(),
       };
+      (state.units = state.units || {})[f.id] = unitEl.value;
       if (editing) {
         const old = day[meal] || [];
         const i = old.findIndex(x => x.id === entry.id);
@@ -848,7 +904,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.4.2 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
