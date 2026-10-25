@@ -3,12 +3,15 @@
 // ---------- Opslag ----------
 const STORE_KEY = 'voeding.v1';
 const MEALS = [1, 2, 3, 4, 5, 6].map(n => ({ id: 'm' + n, name: 'Meal ' + n }));
-const MIN_MEALS = 3; // altijd zichtbaar; meer via "+ Meal toevoegen"
+const MIN_MEALS = 5; // altijd zichtbaar; meer via "+ Meal toevoegen"
 
 // Calorieën altijd uit de macro's: 4 kcal per g koolhydraten en eiwit, 9 per g vet.
 function kcalOf(x) {
   return 4 * (x.c || 0) + 4 * (x.p || 0) + 9 * (x.f || 0);
 }
+
+// Noah's vaste voedingsmiddelen: standaard favoriet (de twee desembroden staan bij Jumbo).
+const MY_FOODS = BUILTIN_FOODS.filter(f => f.id.startsWith('n-')).map(f => f.id).concat(['j722826', 'j705480']);
 
 function defaultState() {
   return {
@@ -16,7 +19,8 @@ function defaultState() {
     hidden: [],     // verborgen ingebouwde voedingsmiddelen
     log: {},        // { 'JJJJ-MM-DD': { ontbijt: [entry], ... } }
     recent: [],
-    favs: [],
+    favs: [...MY_FOODS],
+    favsSeeded: true,
     targets: { k: 0, c: 0, p: 0, f: 0 },
   };
 }
@@ -36,6 +40,12 @@ function migrate(st) {
     for (const [from, to] of Object.entries(old)) {
       if (day[from]) { day[to] = (day[to] || []).concat(day[from]); delete day[from]; }
     }
+  }
+  // Noah's eigen voedingsmiddelen eenmalig als favoriet zetten.
+  if (!st.favsSeeded) {
+    const mine = MY_FOODS;
+    st.favs = [...st.favs, ...mine.filter(id => !st.favs.includes(id))];
+    st.favsSeeded = true;
   }
   return st;
 }
@@ -186,16 +196,64 @@ function amountLabel(e) {
   return `${fmt(e.qty, 2)} × ${esc(e.unit)} (${fmt(entryGrams(e))} g)`;
 }
 
+// Aantal bewerkingen (letter erbij, eraf, anders of twee omgewisseld) tussen a en b.
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
+
+// Hoe goed past één zoekwoord bij een voedingsmiddel: 0 = begin van een woord, 0,5 = ergens in een woord,
+// 1-2 = tikfout, null = niet.
+function wordScore(w, tokens, hay) {
+  if (tokens.some(t => t.startsWith(w))) return 0;
+  if (hay.includes(w)) return 0.5;
+  const allowed = w.length <= 3 ? 0 : w.length <= 6 ? 1 : 2;
+  if (!allowed) return null;
+  let best = Infinity;
+  for (const t of tokens) {
+    // vergelijk met het hele woord en met het begin ervan (voor half getypte woorden)
+    best = Math.min(best, editDistance(w, t), editDistance(w, t.slice(0, w.length)));
+  }
+  return best <= allowed ? best : null;
+}
+
 function searchFoods(q) {
   const words = norm(q).split(/\s+/).filter(Boolean);
-  const list = allFoods().filter(f => {
-    const hay = norm(f.name + ' ' + (f.brand || ''));
-    return words.every(w => hay.includes(w));
-  });
   const fav = new Set(state.favs);
   const rec = state.recent;
   const rank = f => (fav.has(f.id) ? 0 : 2) + (rec.includes(f.id) ? 0 : 1);
-  return list.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'nl'));
+  const scored = [];
+  for (const f of allFoods()) {
+    const hay = norm(`${f.name} ${f.brand || ''} ${f.alias || ''}`);
+    const tokens = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    let score = 0;
+    for (const w of words) {
+      const s = wordScore(w, tokens, hay);
+      if (s === null) { score = null; break; }
+      score += s;
+    }
+    if (score !== null) scored.push({ f, score });
+  }
+  scored.sort((a, b) => a.score - b.score || rank(a.f) - rank(b.f) || a.f.name.localeCompare(b.f.name, 'nl'));
+  return scored.map(x => x.f);
+}
+
+// In welke groep valt een voedingsmiddel: de macro die de meeste calorieën levert.
+function dominance(f) {
+  const parts = [['carb', 4 * (f.c || 0)], ['protein', 4 * (f.p || 0)], ['fat', 9 * (f.f || 0)]];
+  const total = parts.reduce((t, [, v]) => t + v, 0);
+  if (!total) return '';
+  const [key] = parts.sort((a, b) => b[1] - a[1])[0];
+  const label = { carb: 'Carb dominant', protein: 'Protein dominant', fat: 'Fat dominant' }[key];
+  return `<span class="dom dom-${key}">${label}</span>`;
 }
 
 function toggleFav(id) {
@@ -244,6 +302,7 @@ function renderDag() {
   const kcalRest = g.k ? g.k - t.k : null;
 
   let html = `
+    <div class="brand"><img src="icons/icon-192.png" alt=""><span>NT <b>Nutrition</b></span></div>
     <div class="datebar">
       <button class="iconbtn" data-act="prevday" aria-label="Vorige dag">‹</button>
       <div class="label">
@@ -362,10 +421,10 @@ function closeSheet() {
 }
 
 // ---------- Toevoegen: zoeken ----------
-let addMode = 'recent';
+let addMode = 'favs';
 function openAdd(meal) {
   const mealName = MEALS.find(m => m.id === meal).name;
-  if (!state.recent.length && addMode === 'recent') addMode = 'alles';
+  if (!state.favs.length && addMode === 'favs') addMode = 'alles';
   openSheet(`
     <div class="sheet-head">
       <button class="btn ghost" data-s="close">Sluiten</button>
@@ -374,8 +433,8 @@ function openAdd(meal) {
     </div>
     <input class="search" id="q" type="search" placeholder="Zoek voedingsmiddel…" autocomplete="off">
     <div class="seg" id="seg">
-      <button data-mode="recent">Recent</button>
       <button data-mode="favs">Favorieten</button>
+      <button data-mode="recent">Recent</button>
       <button data-mode="alles">Alles</button>
     </div>
     <div class="card" style="padding-top:2px;padding-bottom:2px"><ul class="list" id="results"></ul></div>
@@ -394,7 +453,7 @@ function openAdd(meal) {
     const fav = new Set(state.favs);
     $('#results', sheet).innerHTML = list.length ? list.slice(0, 200).map(f => `
       <li data-s="pick" data-id="${esc(f.id)}">
-        <div class="f-main"><div class="f-name">${esc(f.name)}</div><div class="f-sub">${foodSub(f)}</div></div>
+        <div class="f-main"><div class="f-name">${esc(f.name)}</div><div class="f-sub">${foodSub(f)}</div>${dominance(f)}</div>
         <button class="star ${fav.has(f.id) ? 'on' : ''}" data-s="fav" data-id="${esc(f.id)}" aria-label="Favoriet">${fav.has(f.id) ? '★' : '☆'}</button>
       </li>`).join('')
       : `<li class="empty">${text ? 'Niets gevonden. Tik op “+ Nieuw” om het toe te voegen.' : addMode === 'favs' ? 'Nog geen favorieten. Tik op ☆ om er een te maken.' : 'Nog niets recent gegeten.'}</li>`;
@@ -436,6 +495,7 @@ function openQty({ food, entry, meal, back }) {
     <div class="card">
       <h2>${esc(f.name)}</h2>
       <div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(kcalOf(per))} kcal · KH ${fmt(per.c, 1)} · E ${fmt(per.p, 1)} · V ${fmt(per.f, 1)} per 100 g</div>
+      ${dominance(per)}
     </div>
     <div class="card">
       <div class="row2">
@@ -621,11 +681,11 @@ function renderVoeding() {
     <div style="margin:10px 0"><button class="btn primary block" data-act="newfood">+ Nieuw voedingsmiddel</button></div>
     <div class="card" style="padding-top:2px;padding-bottom:2px"><ul class="list" id="flist"></ul></div>`;
   const draw = () => {
-    const list = searchFoods(foodQuery).sort((a, b) => a.name.localeCompare(b.name, 'nl'));
+    const list = foodQuery.trim() ? searchFoods(foodQuery) : searchFoods('').sort((a, b) => a.name.localeCompare(b.name, 'nl'));
     $('#flist').innerHTML = list.map(f => `
       <li data-act="editfood" data-id="${esc(f.id)}">
         <div class="f-main"><div class="f-name">${esc(f.name)}${!isBuiltin(f.id) ? '<span class="tag">eigen</span>' : state.foods[f.id] ? '<span class="tag">aangepast</span>' : ''}</div>
-        <div class="f-sub">${foodSub(f)}<br>KH ${fmt(f.c, 1)} · E ${fmt(f.p, 1)} · V ${fmt(f.f, 1)} per 100 g</div></div>
+        <div class="f-sub">${foodSub(f)}<br>KH ${fmt(f.c, 1)} · E ${fmt(f.p, 1)} · V ${fmt(f.f, 1)} per 100 g</div>${dominance(f)}</div>
       </li>`).join('') || '<li class="empty">Niets gevonden.</li>';
   };
   $('#fq').addEventListener('input', e => { foodQuery = e.target.value; draw(); });
@@ -750,7 +810,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">Voeding · ${BUILTIN_FOODS.length} ingebouwde voedingsmiddelen</p>`;
+    <p class="muted small" style="text-align:center">NT Nutrition v0.2 · ${BUILTIN_FOODS.length} ingebouwde voedingsmiddelen</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }

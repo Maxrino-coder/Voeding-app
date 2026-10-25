@@ -4,8 +4,8 @@
   --text: #1c1f1d;
   --muted: #6b726d;
   --line: #e3e6e1;
-  --accent: #1f7a4d;
-  --accent-soft: #e2f1e8;
+  --accent: #1d3a6e;
+  --accent-soft: #e3e9f4;
   --danger: #c0392b;
   --c-kcal: #1f7a4d;
   --c-carb: #d08a1e;
@@ -20,8 +20,8 @@
     --text: #eceeea;
     --muted: #9aa29c;
     --line: #2c302d;
-    --accent: #3fb57a;
-    --accent-soft: #1d3328;
+    --accent: #7fa6ec;
+    --accent-soft: #1c2840;
     --c-kcal: #3fb57a;
     --c-carb: #e6a640;
     --c-prot: #5b9be0;
@@ -178,3 +178,14 @@ label.field input, label.field select {
 }
 .empty { text-align: center; color: var(--muted); padding: 20px 0; }
 .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); margin-left: 6px; vertical-align: middle; }
+
+/* Merk */
+.brand { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 2px 0 10px; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.brand img { width: 26px; height: 26px; border-radius: 7px; }
+.brand b { font-weight: 700; }
+
+/* Macro-groep */
+.dom { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; color: #fff; }
+.dom-carb { background: var(--c-carb); }
+.dom-protein { background: var(--c-prot); }
+.dom-fat { background: var(--c-fat); }

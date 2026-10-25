@@ -1,13 +1,13 @@
 {
-  "name": "Voeding",
-  "short_name": "Voeding",
+  "name": "NT Nutrition",
+  "short_name": "NT Nutrition",
   "description": "Persoonlijk voedingsdagboek: calorieën, koolhydraten, eiwit en vet.",
   "lang": "nl",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f5f2",
-  "theme_color": "#1f7a4d",
+  "theme_color": "#0b1a36",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
