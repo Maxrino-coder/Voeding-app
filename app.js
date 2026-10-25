@@ -41,6 +41,8 @@ function migrate(st) {
       if (day[from]) { day[to] = (day[to] || []).concat(day[from]); delete day[from]; }
     }
   }
+  // Eigen voedingsmiddelen zonder macro's opruimen.
+  for (const [id, f] of Object.entries(st.foods)) if (!isBuiltinId(id) && kcalOf(f) === 0) delete st.foods[id];
   // Noah's eigen voedingsmiddelen eenmalig als favoriet zetten.
   if (!st.favsSeeded) {
     const mine = MY_FOODS;
@@ -50,13 +52,15 @@ function migrate(st) {
   return st;
 }
 
+function isBuiltinId(id) { return BUILTIN_FOODS.some(f => f.id === id); }
+
 let state = loadState();
 
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
   } catch (e) {
-    toast('Opslaan mislukt: ' + e.message);
+    toast('Saving failed: ' + e.message);
   }
 }
 
@@ -74,7 +78,7 @@ function esc(s) {
 
 function fmt(n, d = 0) {
   if (!isFinite(n)) n = 0;
-  return n.toLocaleString('nl-BE', { minimumFractionDigits: 0, maximumFractionDigits: d });
+  return n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: d });
 }
 
 function num(v) {
@@ -108,14 +112,14 @@ const todayKey = () => dateKey(new Date());
 
 function dayLabel(k) {
   const t = todayKey();
-  if (k === t) return 'Vandaag';
-  if (k === addDays(t, -1)) return 'Gisteren';
-  if (k === addDays(t, 1)) return 'Morgen';
-  const s = keyToDate(k).toLocaleDateString('nl-BE', { weekday: 'long' });
+  if (k === t) return 'Today';
+  if (k === addDays(t, -1)) return 'Yesterday';
+  if (k === addDays(t, 1)) return 'Tomorrow';
+  const s = keyToDate(k).toLocaleDateString('en-GB', { weekday: 'long' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 function longDate(k) {
-  return keyToDate(k).toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+  return keyToDate(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 let toastTimer;
@@ -133,7 +137,8 @@ function allFoods() {
   const map = new Map();
   for (const f of BUILTIN_FOODS) if (!hidden.has(f.id)) map.set(f.id, f);
   for (const f of Object.values(state.foods)) if (!hidden.has(f.id)) map.set(f.id, f);
-  return [...map.values()];
+  // Voedingsmiddelen zonder macro's (0 kcal) horen niet in de lijsten.
+  return [...map.values()].filter(f => kcalOf(f) > 0);
 }
 
 function getFood(id) {
@@ -246,14 +251,28 @@ function searchFoods(q) {
   return scored.map(x => x.f);
 }
 
-// In welke groep valt een voedingsmiddel: de macro die de meeste calorieën levert.
-function dominance(f) {
-  const parts = [['carb', 4 * (f.c || 0)], ['protein', 4 * (f.p || 0)], ['fat', 9 * (f.f || 0)]];
+// Aandeel van elke macro in de calorieën, grootste eerst.
+const DOM_LABEL = { carb: 'Carb dominant', protein: 'Protein dominant', fat: 'Fat dominant' };
+function macroShares(x) {
+  const parts = [['protein', 4 * (x.p || 0)], ['carb', 4 * (x.c || 0)], ['fat', 9 * (x.f || 0)]];
   const total = parts.reduce((t, [, v]) => t + v, 0);
-  if (!total) return '';
-  const [key] = parts.sort((a, b) => b[1] - a[1])[0];
-  const label = { carb: 'Carb dominant', protein: 'Protein dominant', fat: 'Fat dominant' }[key];
-  return `<span class="dom dom-${key}">${label}</span>`;
+  if (!total) return [];
+  return parts.map(([key, v]) => ({ key, pct: (v / total) * 100 })).sort((a, b) => b.pct - a.pct);
+}
+
+// In welke groep valt een voedingsmiddel: de macro die de meeste calorieën levert.
+function dominance(x, small) {
+  const top = macroShares(x)[0];
+  if (!top) return '';
+  return `<span class="dom dom-${top.key}${small ? ' dom-sm' : ''}">${DOM_LABEL[top.key]}</span>`;
+}
+
+// Rangschikking van de drie macro's voor een hele meal.
+function mealRanking(t) {
+  const shares = macroShares(t);
+  if (!shares.length) return '';
+  return `<div class="ranking">${shares.map((x, i) =>
+    `<div class="rank-row${i === 0 ? ' top' : ''}"><span class="dot dom-${x.key}"></span>${DOM_LABEL[x.key]}<span class="pct">${fmt(x.pct)}%</span></div>`).join('')}</div>`;
 }
 
 function toggleFav(id) {
@@ -302,29 +321,29 @@ function renderDag() {
   const kcalRest = g.k ? g.k - t.k : null;
 
   let html = `
-    <div class="brand"><img src="icons/icon-192.png" alt=""><span>NT <b>Nutrition</b></span></div>
+    <div class="brand"><img src="icons/icon-192.png" alt=""><span><b>NT</b>rition</span></div>
     <div class="datebar">
-      <button class="iconbtn" data-act="prevday" aria-label="Vorige dag">‹</button>
+      <button class="iconbtn" data-act="prevday" aria-label="Previous day">‹</button>
       <div class="label">
         <strong>${dayLabel(cur)}</strong>
         <span class="muted small">${longDate(cur)}</span>
-        <input type="date" id="datepick" value="${cur}" aria-label="Kies datum">
+        <input type="date" id="datepick" value="${cur}" aria-label="Pick date">
       </div>
-      <button class="iconbtn" data-act="nextday" aria-label="Volgende dag">›</button>
+      <button class="iconbtn" data-act="nextday" aria-label="Next day">›</button>
     </div>
 
     <div class="card totals">
       <div class="kcal-row">
         <div><span class="kcal-big">${fmt(t.k)}</span> <span class="muted">kcal</span></div>
         <div class="muted small" style="text-align:right">
-          ${g.k ? `doel ${fmt(g.k)}<br><strong style="color:${kcalRest < 0 ? 'var(--over)' : 'var(--text)'}">${kcalRest < 0 ? fmt(-kcalRest) + ' te veel' : fmt(kcalRest) + ' over'}</strong>` : ''}
+          ${g.k ? `goal ${fmt(g.k)}<br><strong style="color:${kcalRest < 0 ? 'var(--over)' : 'var(--text)'}">${kcalRest < 0 ? fmt(-kcalRest) + ' over goal' : fmt(kcalRest) + ' left'}</strong>` : ''}
         </div>
       </div>
       ${bar(t.k, g.k, 'var(--c-kcal)')}
       <div class="macros">
-        ${macroBlock('Koolhydraten', t.c, g.c, 'var(--c-carb)')}
-        ${macroBlock('Eiwit', t.p, g.p, 'var(--c-prot)')}
-        ${macroBlock('Vet', t.f, g.f, 'var(--c-fat)')}
+        ${macroBlock('Carbs', t.c, g.c, 'var(--c-carb)')}
+        ${macroBlock('Protein', t.p, g.p, 'var(--c-prot)')}
+        ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)')}
       </div>
     </div>`;
 
@@ -335,28 +354,29 @@ function renderDag() {
       <div class="card">
         <div class="meal-head">
           <h2>${m.name}</h2>
-          <div class="sum">${entries.length ? `<strong style="color:var(--text)">${fmt(mt.k)} kcal</strong><br>KH ${fmt(mt.c)} · E ${fmt(mt.p)} · V ${fmt(mt.f)}` : ''}</div>
+          <div class="sum">${entries.length ? `<strong style="color:var(--text)">${fmt(mt.k)} kcal</strong><br>C ${fmt(mt.c)} · P ${fmt(mt.p)} · F ${fmt(mt.f)}` : ''}</div>
         </div>
+        ${entries.length ? mealRanking(mt) : ''}
         ${entries.length ? `<ul class="entries">${entries.map(e => {
           const et = entryTotals(e);
           return `<li data-act="editentry" data-meal="${m.id}" data-id="${e.id}">
-            <div><div class="e-name">${esc(e.name)}</div><div class="e-sub">${amountLabel(e)} · KH ${fmt(et.c, 1)} · E ${fmt(et.p, 1)} · V ${fmt(et.f, 1)}</div></div>
+            <div><div class="e-name">${esc(e.name)} ${dominance(e.per, true)}</div><div class="e-sub">${amountLabel(e)} · C ${fmt(et.c, 1)} · P ${fmt(et.p, 1)} · F ${fmt(et.f, 1)}</div></div>
             <div class="e-kcal">${fmt(et.k)}</div>
           </li>`;
         }).join('')}</ul>` : ''}
         <div class="meal-actions">
-          <button class="btn grow" data-act="add" data-meal="${m.id}">+ Toevoegen</button>
-          ${entries.length ? `<button class="btn ghost" data-act="copymeal" data-meal="${m.id}">Kopiëren</button>` : ''}
+          <button class="btn grow" data-act="add" data-meal="${m.id}">+ Add food</button>
+          ${entries.length ? `<button class="btn ghost" data-act="copymeal" data-meal="${m.id}">Copy</button>` : ''}
         </div>
       </div>`;
   }
 
   const shown = visibleMeals(cur);
   if (shown < MEALS.length) {
-    html += `<button class="btn block" data-act="addmeal" style="margin-bottom:12px">+ ${MEALS[shown].name} toevoegen</button>`;
+    html += `<button class="btn block" data-act="addmeal" style="margin-bottom:12px">+ Add ${MEALS[shown].name}</button>`;
   }
   if (dayHasEntries(cur)) {
-    html += `<button class="btn ghost block" data-act="copyday">Hele dag kopiëren naar…</button>`;
+    html += `<button class="btn ghost block" data-act="copyday">Copy whole day to…</button>`;
   }
   view.innerHTML = html;
 
@@ -427,15 +447,15 @@ function openAdd(meal) {
   if (!state.favs.length && addMode === 'favs') addMode = 'alles';
   openSheet(`
     <div class="sheet-head">
-      <button class="btn ghost" data-s="close">Sluiten</button>
+      <button class="btn ghost" data-s="close">Close</button>
       <h2>${mealName}</h2>
-      <button class="btn ghost" data-s="new">+ Nieuw</button>
+      <button class="btn ghost" data-s="new">+ New</button>
     </div>
-    <input class="search" id="q" type="search" placeholder="Zoek voedingsmiddel…" autocomplete="off">
+    <input class="search" id="q" type="search" placeholder="Search food…" autocomplete="off">
     <div class="seg" id="seg">
-      <button data-mode="favs">Favorieten</button>
+      <button data-mode="favs">Favourites</button>
       <button data-mode="recent">Recent</button>
-      <button data-mode="alles">Alles</button>
+      <button data-mode="alles">All</button>
     </div>
     <div class="card" style="padding-top:2px;padding-bottom:2px"><ul class="list" id="results"></ul></div>
   `);
@@ -447,16 +467,16 @@ function openAdd(meal) {
     sheet.querySelectorAll('#seg button').forEach(b => b.classList.toggle('active', b.dataset.mode === addMode));
     let list;
     if (text) list = searchFoods(text);
-    else if (addMode === 'recent') list = state.recent.map(getFood).filter(f => f && !state.hidden.includes(f.id));
-    else if (addMode === 'favs') list = state.favs.map(getFood).filter(f => f && !state.hidden.includes(f.id));
+    else if (addMode === 'recent') list = state.recent.map(getFood).filter(f => f && !state.hidden.includes(f.id) && kcalOf(f) > 0);
+    else if (addMode === 'favs') list = state.favs.map(getFood).filter(f => f && !state.hidden.includes(f.id) && kcalOf(f) > 0);
     else list = searchFoods('');
     const fav = new Set(state.favs);
     $('#results', sheet).innerHTML = list.length ? list.slice(0, 200).map(f => `
       <li data-s="pick" data-id="${esc(f.id)}">
         <div class="f-main"><div class="f-name">${esc(f.name)}</div><div class="f-sub">${foodSub(f)}</div>${dominance(f)}</div>
-        <button class="star ${fav.has(f.id) ? 'on' : ''}" data-s="fav" data-id="${esc(f.id)}" aria-label="Favoriet">${fav.has(f.id) ? '★' : '☆'}</button>
+        <button class="star ${fav.has(f.id) ? 'on' : ''}" data-s="fav" data-id="${esc(f.id)}" aria-label="Favourite">${fav.has(f.id) ? '★' : '☆'}</button>
       </li>`).join('')
-      : `<li class="empty">${text ? 'Niets gevonden. Tik op “+ Nieuw” om het toe te voegen.' : addMode === 'favs' ? 'Nog geen favorieten. Tik op ☆ om er een te maken.' : 'Nog niets recent gegeten.'}</li>`;
+      : `<li class="empty">${text ? 'Nothing found. Tap “+ New” to add it.' : addMode === 'favs' ? 'No favourites yet. Tap ☆ to add one.' : 'Nothing eaten recently.'}</li>`;
   };
   q.addEventListener('input', draw);
   draw();
@@ -479,7 +499,7 @@ function openQty({ food, entry, meal, back }) {
   // Bij bewerken: neem de actuele gegevens van het voedingsmiddel als het nog bestaat, anders de opgeslagen kopie.
   const f = food || getFood(entry.foodId) || { id: entry.foodId, name: entry.name, brand: entry.brand, ...entry.per, portions: [] };
   const per = editing ? entry.per : { k: f.k, c: f.c, p: f.p, f: f.f };
-  const units = [{ n: 'g', g: 1, label: 'gram' }].concat((f.portions || []).map(p => ({ n: p.n, g: p.g, label: `${p.n} (${fmt(p.g)} g)` })));
+  const units = [{ n: 'g', g: 1, label: 'grams' }].concat((f.portions || []).map(p => ({ n: p.n, g: p.g, label: `${p.n} (${fmt(p.g)} g)` })));
   if (editing && !units.some(u => u.n === entry.unit)) units.push({ n: entry.unit, g: entry.ug, label: `${entry.unit} (${fmt(entry.ug)} g)` });
 
   let unit = editing ? entry.unit : (units[1] ? units[1].n : 'g');
@@ -488,24 +508,24 @@ function openQty({ food, entry, meal, back }) {
 
   openSheet(`
     <div class="sheet-head">
-      <button class="btn ghost" data-s="back">${editing ? 'Annuleren' : 'Terug'}</button>
-      <h2>${editing ? 'Bewerken' : 'Toevoegen'}</h2>
-      <button class="star ${fav ? 'on' : ''}" data-s="fav" aria-label="Favoriet">${fav ? '★' : '☆'}</button>
+      <button class="btn ghost" data-s="back">${editing ? 'Cancel' : 'Back'}</button>
+      <h2>${editing ? 'Edit' : 'Add food'}</h2>
+      <button class="star ${fav ? 'on' : ''}" data-s="fav" aria-label="Favourite">${fav ? '★' : '☆'}</button>
     </div>
     <div class="card">
       <h2>${esc(f.name)}</h2>
-      <div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(kcalOf(per))} kcal · KH ${fmt(per.c, 1)} · E ${fmt(per.p, 1)} · V ${fmt(per.f, 1)} per 100 g</div>
+      <div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(kcalOf(per))} kcal · C ${fmt(per.c, 1)} · P ${fmt(per.p, 1)} · F ${fmt(per.f, 1)} per 100 g</div>
       ${dominance(per)}
     </div>
     <div class="card">
       <div class="row2">
-        <label class="field"><span>Hoeveelheid</span><input id="qty" inputmode="decimal" value="${fmt(qty, 2)}" autocomplete="off"></label>
-        <label class="field"><span>Eenheid</span><select id="unit">${units.map(u => `<option value="${esc(u.n)}" ${u.n === unit ? 'selected' : ''}>${esc(u.label)}</option>`).join('')}</select></label>
+        <label class="field"><span>Amount</span><input id="qty" inputmode="decimal" value="${fmt(qty, 2)}" autocomplete="off"></label>
+        <label class="field"><span>Unit</span><select id="unit">${units.map(u => `<option value="${esc(u.n)}" ${u.n === unit ? 'selected' : ''}>${esc(u.label)}</option>`).join('')}</select></label>
       </div>
-      <label class="field"><span>Maaltijd</span><select id="meal">${MEALS.map(m => `<option value="${m.id}" ${m.id === meal ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>
+      <label class="field"><span>Meal</span><select id="meal">${MEALS.map(m => `<option value="${m.id}" ${m.id === meal ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>
       <div class="preview" id="preview"></div>
-      <button class="btn primary block" data-s="ok">${editing ? 'Opslaan' : 'Toevoegen'}</button>
-      ${editing ? '<button class="btn danger block" data-s="del" style="margin-top:8px">Verwijderen</button>' : ''}
+      <button class="btn primary block" data-s="ok">${editing ? 'Save' : 'Add'}</button>
+      ${editing ? '<button class="btn danger block" data-s="del" style="margin-top:8px">Delete</button>' : ''}
     </div>
   `);
 
@@ -516,9 +536,9 @@ function openQty({ food, entry, meal, back }) {
     const t = scale(per, (isFinite(q) ? q : 0) * ug());
     $('#preview', sheet).innerHTML = `
       <div><div class="v">${fmt(t.k)}</div><div class="l">kcal</div></div>
-      <div><div class="v">${fmt(t.c, 1)}</div><div class="l">KH (g)</div></div>
-      <div><div class="v">${fmt(t.p, 1)}</div><div class="l">Eiwit (g)</div></div>
-      <div><div class="v">${fmt(t.f, 1)}</div><div class="l">Vet (g)</div></div>`;
+      <div><div class="v">${fmt(t.c, 1)}</div><div class="l">Carbs (g)</div></div>
+      <div><div class="v">${fmt(t.p, 1)}</div><div class="l">Protein (g)</div></div>
+      <div><div class="v">${fmt(t.f, 1)}</div><div class="l">Fat (g)</div></div>`;
   };
   qtyEl.addEventListener('input', draw);
   qtyEl.addEventListener('focus', () => qtyEl.select());
@@ -552,11 +572,11 @@ function openQty({ food, entry, meal, back }) {
       const list = dayLog(cur, true)[meal];
       const i = list.findIndex(x => x.id === entry.id);
       if (i >= 0) list.splice(i, 1);
-      save(); closeSheet(); render(); toast('Verwijderd');
+      save(); closeSheet(); render(); toast('Deleted');
     }
     else if (s === 'ok') {
       const q = num(qtyEl.value);
-      if (!isFinite(q) || q <= 0) { toast('Vul een hoeveelheid in'); return; }
+      if (!isFinite(q) || q <= 0) { toast('Enter an amount'); return; }
       const newMeal = $('#meal', sheet).value;
       const day = dayLog(cur, true);
       const item = {
@@ -574,27 +594,27 @@ function openQty({ food, entry, meal, back }) {
         pushRecent(f.id);
       }
       save(); closeSheet(); render();
-      toast(editing ? 'Opgeslagen' : `${f.name} toegevoegd`);
+      toast(editing ? 'Saved' : `${f.name} added`);
     }
   };
 }
 
 // ---------- Kopiëren ----------
 function openCopy(meal) {
-  const what = meal ? MEALS.find(m => m.id === meal).name : 'Hele dag';
+  const what = meal ? MEALS.find(m => m.id === meal).name : 'Whole day';
   const target = cur === todayKey() ? addDays(cur, 1) : todayKey();
   openSheet(`
     <div class="sheet-head">
-      <button class="btn ghost" data-s="close">Annuleren</button>
-      <h2>Kopiëren</h2>
+      <button class="btn ghost" data-s="close">Cancel</button>
+      <h2>Copy</h2>
       <span style="min-width:70px"></span>
     </div>
     <div class="card">
-      <p style="margin-top:0"><strong>${what}</strong> van ${dayLabel(cur).toLowerCase()} (${longDate(cur)}) kopiëren naar:</p>
-      <label class="field"><span>Datum</span><input type="date" id="cdate" value="${target}"></label>
-      ${meal ? `<label class="field"><span>Maaltijd</span><select id="cmeal">${MEALS.map(m => `<option value="${m.id}" ${m.id === meal ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>` : ''}
-      <p class="muted small">De items worden toegevoegd aan wat er op die dag al staat.</p>
-      <button class="btn primary block" data-s="ok">Kopiëren</button>
+      <p style="margin-top:0">Copy <strong>${what}</strong> from ${longDate(cur)} to:</p>
+      <label class="field"><span>Date</span><input type="date" id="cdate" value="${target}"></label>
+      ${meal ? `<label class="field"><span>Meal</span><select id="cmeal">${MEALS.map(m => `<option value="${m.id}" ${m.id === meal ? 'selected' : ''}>${m.name}</option>`).join('')}</select></label>` : ''}
+      <p class="muted small">The items are added to whatever is already logged that day.</p>
+      <button class="btn primary block" data-s="ok">Copy</button>
     </div>
   `);
   sheet.onclick = e => {
@@ -603,7 +623,7 @@ function openCopy(meal) {
     if (el.dataset.s === 'close') closeSheet();
     else if (el.dataset.s === 'ok') {
       const to = $('#cdate', sheet).value;
-      if (!to) { toast('Kies een datum'); return; }
+      if (!to) { toast('Pick a date'); return; }
       const dest = dayLog(to, true);
       const pairs = meal ? [[meal, $('#cmeal', sheet).value]] : MEALS.map(m => [m.id, m.id]);
       let n = 0;
@@ -615,7 +635,7 @@ function openCopy(meal) {
       }
       save(); closeSheet();
       cur = to; render(); window.scrollTo(0, 0);
-      toast(`${n} item${n === 1 ? '' : 's'} gekopieerd`);
+      toast(`${n} item${n === 1 ? '' : 's'} copied`);
     }
   };
 }
@@ -633,18 +653,18 @@ function renderWeek() {
   const n = logged.length || 1;
   const maxK = Math.max(g.k || 0, ...rows.map(r => r.t.k), 1) * 1.1;
 
-  const short = k => keyToDate(k).toLocaleDateString('nl-BE', { weekday: 'short' }).replace('.', '');
+  const short = k => keyToDate(k).toLocaleDateString('en-GB', { weekday: 'short' }).replace('.', '');
   const cls = (v, goal) => (goal && v > goal * 1.0001 ? 'over' : '');
 
   view.innerHTML = `
     <div class="datebar">
-      <button class="iconbtn" data-act="prevweek" aria-label="Vorige week">‹</button>
+      <button class="iconbtn" data-act="prevweek" aria-label="Previous week">‹</button>
       <div class="label"><strong>Week</strong><span class="muted small">${longDate(days[0])} – ${longDate(days[6])}</span></div>
-      <button class="iconbtn" data-act="nextweek" aria-label="Volgende week">›</button>
+      <button class="iconbtn" data-act="nextweek" aria-label="Next week">›</button>
     </div>
 
     <div class="card">
-      <h2>Calorieën per dag</h2>
+      <h2>Calories per day</h2>
       <div class="chart">
         ${g.k ? `<div class="goal" style="bottom:${20 + (g.k / maxK) * 120}px"></div>` : ''}
         ${rows.map(r => `<div class="col" data-act="gotoday" data-day="${r.k}">
@@ -655,7 +675,7 @@ function renderWeek() {
 
     <div class="card">
       <table class="week-table">
-        <thead><tr><th>Dag</th><th>kcal</th><th>KH</th><th>Eiwit</th><th>Vet</th></tr></thead>
+        <thead><tr><th>Day</th><th>kcal</th><th>Carbs</th><th>Protein</th><th>Fat</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr class="${r.k === todayKey() ? 'today' : ''}" data-act="gotoday" data-day="${r.k}">
             <td>${short(r.k)} ${keyToDate(r.k).getDate()}/${keyToDate(r.k).getMonth() + 1}</td>
@@ -664,11 +684,11 @@ function renderWeek() {
             <td>${r.has ? fmt(r.t.p) : '–'}</td>
             <td class="${cls(r.t.f, g.f)}">${r.has ? fmt(r.t.f) : '–'}</td>
           </tr>`).join('')}
-          <tr class="avg"><td>Gemiddeld*</td><td>${fmt(avg.k / n)}</td><td>${fmt(avg.c / n)}</td><td>${fmt(avg.p / n)}</td><td>${fmt(avg.f / n)}</td></tr>
-          ${g.k || g.c || g.p || g.f ? `<tr class="avg muted"><td>Doel</td><td>${fmt(g.k)}</td><td>${fmt(g.c)}</td><td>${fmt(g.p)}</td><td>${fmt(g.f)}</td></tr>` : ''}
+          <tr class="avg"><td>Average*</td><td>${fmt(avg.k / n)}</td><td>${fmt(avg.c / n)}</td><td>${fmt(avg.p / n)}</td><td>${fmt(avg.f / n)}</td></tr>
+          ${g.k || g.c || g.p || g.f ? `<tr class="avg muted"><td>Goal</td><td>${fmt(g.k)}</td><td>${fmt(g.c)}</td><td>${fmt(g.p)}</td><td>${fmt(g.f)}</td></tr>` : ''}
         </tbody>
       </table>
-      <p class="muted small">* Gemiddelde over de ${logged.length} ${logged.length === 1 ? 'dag' : 'dagen'} waarop je iets hebt ingevuld. KH, eiwit en vet in gram. Tik op een dag om hem te openen.</p>
+      <p class="muted small">* Average over the ${logged.length} ${logged.length === 1 ? 'day' : 'days'} with entries. Carbs, protein and fat in grams. Tap a day to open it.</p>
     </div>`;
 }
 
@@ -676,17 +696,17 @@ function renderWeek() {
 let foodQuery = '';
 function renderVoeding() {
   view.innerHTML = `
-    <h1>Voedingsmiddelen</h1>
-    <input class="search" id="fq" type="search" placeholder="Zoek…" value="${esc(foodQuery)}" autocomplete="off">
-    <div style="margin:10px 0"><button class="btn primary block" data-act="newfood">+ Nieuw voedingsmiddel</button></div>
+    <h1>Foods</h1>
+    <input class="search" id="fq" type="search" placeholder="Search…" value="${esc(foodQuery)}" autocomplete="off">
+    <div style="margin:10px 0"><button class="btn primary block" data-act="newfood">+ New food</button></div>
     <div class="card" style="padding-top:2px;padding-bottom:2px"><ul class="list" id="flist"></ul></div>`;
   const draw = () => {
     const list = foodQuery.trim() ? searchFoods(foodQuery) : searchFoods('').sort((a, b) => a.name.localeCompare(b.name, 'nl'));
     $('#flist').innerHTML = list.map(f => `
       <li data-act="editfood" data-id="${esc(f.id)}">
-        <div class="f-main"><div class="f-name">${esc(f.name)}${!isBuiltin(f.id) ? '<span class="tag">eigen</span>' : state.foods[f.id] ? '<span class="tag">aangepast</span>' : ''}</div>
-        <div class="f-sub">${foodSub(f)}<br>KH ${fmt(f.c, 1)} · E ${fmt(f.p, 1)} · V ${fmt(f.f, 1)} per 100 g</div>${dominance(f)}</div>
-      </li>`).join('') || '<li class="empty">Niets gevonden.</li>';
+        <div class="f-main"><div class="f-name">${esc(f.name)}${!isBuiltin(f.id) ? '<span class="tag">custom</span>' : state.foods[f.id] ? '<span class="tag">edited</span>' : ''}</div>
+        <div class="f-sub">${foodSub(f)}<br>C ${fmt(f.c, 1)} · P ${fmt(f.p, 1)} · F ${fmt(f.f, 1)} per 100 g</div>${dominance(f)}</div>
+      </li>`).join('') || '<li class="empty">Nothing found.</li>';
   };
   $('#fq').addEventListener('input', e => { foodQuery = e.target.value; draw(); });
   draw();
@@ -701,30 +721,30 @@ function openFoodEditor(food, opts = {}) {
 
   openSheet(`
     <div class="sheet-head">
-      <button class="btn ghost" data-s="close">Annuleren</button>
-      <h2>${isNew ? 'Nieuw voedingsmiddel' : 'Bewerken'}</h2>
-      <button class="btn ghost" data-s="ok">Bewaar</button>
+      <button class="btn ghost" data-s="close">Cancel</button>
+      <h2>${isNew ? 'New food' : 'Edit food'}</h2>
+      <button class="btn ghost" data-s="ok">Save</button>
     </div>
     <div class="card">
-      <label class="field"><span>Naam</span><input id="fname" value="${esc(f.name)}" placeholder="bv. Griekse yoghurt 0%"></label>
-      <label class="field"><span>Merk / winkel (optioneel)</span><input id="fbrand" value="${esc(f.brand || '')}" placeholder="bv. Jumbo"></label>
+      <label class="field"><span>Name</span><input id="fname" value="${esc(f.name)}" placeholder="e.g. Griekse yoghurt 0%"></label>
+      <label class="field"><span>Brand / store (optional)</span><input id="fbrand" value="${esc(f.brand || '')}" placeholder="e.g. Jumbo"></label>
       <div class="row2">
-        <label class="field"><span>Portie-naam (optioneel)</span><input id="pname" value="${esc(portion.n)}" placeholder="bv. stuk, ei, sneetje"></label>
-        <label class="field"><span>Gewicht 1 portie (g)</span><input id="pg" inputmode="decimal" value="${v(portion.g)}" placeholder="bv. 60"></label>
+        <label class="field"><span>Serving name (optional)</span><input id="pname" value="${esc(portion.n)}" placeholder="e.g. piece, egg, slice"></label>
+        <label class="field"><span>Weight of 1 serving (g)</span><input id="pg" inputmode="decimal" value="${v(portion.g)}" placeholder="e.g. 60"></label>
       </div>
-      <label class="field"><span>Ik vul de voedingswaarden in per</span>
-        <select id="basis"><option value="100">100 gram</option><option value="portie">1 portie</option></select></label>
+      <label class="field"><span>Values entered per</span>
+        <select id="basis"><option value="100">100 grams</option><option value="portie">1 serving</option></select></label>
       <div class="row2">
-        <label class="field"><span>Koolhydraten (g)</span><input id="fc" inputmode="decimal" value="${v(f.c)}"></label>
-        <label class="field"><span>Eiwit (g)</span><input id="fp" inputmode="decimal" value="${v(f.p)}"></label>
-        <label class="field"><span>Vet (g)</span><input id="ff" inputmode="decimal" value="${v(f.f)}"></label>
+        <label class="field"><span>Carbs (g)</span><input id="fc" inputmode="decimal" value="${v(f.c)}"></label>
+        <label class="field"><span>Protein (g)</span><input id="fp" inputmode="decimal" value="${v(f.p)}"></label>
+        <label class="field"><span>Fat (g)</span><input id="ff" inputmode="decimal" value="${v(f.f)}"></label>
       </div>
-      <p class="muted small" style="margin-top:0">Calorieën worden berekend uit de macro's: 4 kcal per gram koolhydraten en eiwit, 9 per gram vet.</p>
+      <p class="muted small" style="margin-top:0">Calories are calculated from the macros: 4 kcal per gram of carbs and protein, 9 per gram of fat.</p>
     </div>
     ${!isNew ? `<div class="card">
-      ${builtin && state.foods[f.id] ? '<button class="btn block" data-s="reset" style="margin-bottom:8px">Originele waarden terugzetten</button>' : ''}
-      <button class="btn danger block" data-s="del">${builtin ? 'Verbergen uit de lijst' : 'Verwijderen'}</button>
-      <p class="muted small">Wat je al in je dagboek hebt gezet, blijft gewoon staan.</p>
+      ${builtin && state.foods[f.id] ? '<button class="btn block" data-s="reset" style="margin-bottom:8px">Restore original values</button>' : ''}
+      <button class="btn danger block" data-s="del">${builtin ? 'Hide from the list' : 'Delete'}</button>
+      <p class="muted small">Anything already in your diary stays as it is.</p>
     </div>` : ''}
   `);
 
@@ -734,7 +754,7 @@ function openFoodEditor(food, opts = {}) {
   basisEl.addEventListener('change', () => {
     const pg = num($('#pg', sheet).value);
     if (!(pg > 0)) {
-      if (basisEl.value === 'portie') { toast('Vul eerst het gewicht van 1 portie in'); basisEl.value = basis; }
+      if (basisEl.value === 'portie') { toast('Enter the weight of 1 serving first'); basisEl.value = basis; }
       return;
     }
     const factor = basisEl.value === 'portie' ? pg / 100 : 100 / pg;
@@ -752,18 +772,19 @@ function openFoodEditor(food, opts = {}) {
     if (s === 'close') { closeSheet(); render(); }
     else if (s === 'reset') {
       delete state.foods[f.id];
-      save(); closeSheet(); render(); toast('Originele waarden teruggezet');
+      save(); closeSheet(); render(); toast('Original values restored');
     }
     else if (s === 'del') {
       if (builtin) state.hidden.push(f.id); else delete state.foods[f.id];
       state.favs = state.favs.filter(x => x !== f.id);
       state.recent = state.recent.filter(x => x !== f.id);
-      save(); closeSheet(); render(); toast(builtin ? 'Verborgen' : 'Verwijderd');
+      save(); closeSheet(); render(); toast(builtin ? 'Hidden' : 'Deleted');
     }
     else if (s === 'ok') {
       const name = $('#fname', sheet).value.trim();
-      if (!name) { toast('Geef een naam'); return; }
+      if (!name) { toast('Enter a name'); return; }
       const c = num($('#fc', sheet).value) || 0, p = num($('#fp', sheet).value) || 0, fat = num($('#ff', sheet).value) || 0;
+      if (!(c + p + fat > 0)) { toast('Enter at least one of carbs, protein or fat'); return; }
       const pn = $('#pname', sheet).value.trim(), pg = num($('#pg', sheet).value);
       const hasPortion = pg > 0;
       const factor = basisEl.value === 'portie' && hasPortion ? 100 / pg : 1;
@@ -772,7 +793,7 @@ function openFoodEditor(food, opts = {}) {
         id: isNew ? uid('c') : f.id,
         name, brand: $('#fbrand', sheet).value.trim(),
         c: r2(c), p: r2(p), f: r2(fat),
-        portions: hasPortion ? [{ n: pn || 'portie', g: pg }] : [],
+        portions: hasPortion ? [{ n: pn || 'serving', g: pg }] : [],
       };
       saved.k = Math.round(kcalOf(saved) * 10) / 10;
       state.foods[saved.id] = saved;
@@ -789,28 +810,28 @@ function renderInstellingen() {
   const v = x => (x ? fmt(x, 1) : '');
   const nLogged = Object.keys(state.log).filter(dayHasEntries).length;
   view.innerHTML = `
-    <h1>Instellingen</h1>
+    <h1>Settings</h1>
     <div class="card">
-      <h2>Dagdoelen</h2>
-      <p class="muted small">Optioneel. Laat leeg wat je niet wil volgen.</p>
+      <h2>Daily goals</h2>
+      <p class="muted small">Optional. Leave empty what you don't want to track.</p>
       <div class="row2">
-        <label class="field"><span>Calorieën (kcal)</span><input id="tk" inputmode="decimal" value="${v(g.k)}"></label>
-        <label class="field"><span>Koolhydraten (g)</span><input id="tc" inputmode="decimal" value="${v(g.c)}"></label>
-        <label class="field"><span>Eiwit (g)</span><input id="tp" inputmode="decimal" value="${v(g.p)}"></label>
-        <label class="field"><span>Vet (g)</span><input id="tf" inputmode="decimal" value="${v(g.f)}"></label>
+        <label class="field"><span>Calories (kcal)</span><input id="tk" inputmode="decimal" value="${v(g.k)}"></label>
+        <label class="field"><span>Carbs (g)</span><input id="tc" inputmode="decimal" value="${v(g.c)}"></label>
+        <label class="field"><span>Protein (g)</span><input id="tp" inputmode="decimal" value="${v(g.p)}"></label>
+        <label class="field"><span>Fat (g)</span><input id="tf" inputmode="decimal" value="${v(g.f)}"></label>
       </div>
-      <button class="btn primary block" data-act="savetargets">Doelen bewaren</button>
+      <button class="btn primary block" data-act="savetargets">Save goals</button>
     </div>
     <div class="card">
-      <h2>Back-up</h2>
-      <p class="muted small">Je gegevens staan alleen op dit toestel (${nLogged} ${nLogged === 1 ? 'dag' : 'dagen'} ingevuld, ${Object.keys(state.foods).length} eigen/aangepaste voedingsmiddelen). Maak af en toe een back-up, bijvoorbeeld voor je van gsm wisselt.</p>
+      <h2>Backup</h2>
+      <p class="muted small">Your data is stored on this device only (${nLogged} ${nLogged === 1 ? 'day' : 'days'} logged, ${Object.keys(state.foods).length} custom/edited foods). Save a backup now and then, for example before switching phones.</p>
       <div class="meal-actions">
-        <button class="btn grow" data-act="export">Back-up opslaan</button>
-        <button class="btn grow" data-act="import">Back-up terugzetten</button>
+        <button class="btn grow" data-act="export">Save backup</button>
+        <button class="btn grow" data-act="import">Restore backup</button>
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NT Nutrition v0.2 · ${BUILTIN_FOODS.length} ingebouwde voedingsmiddelen</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.3 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
@@ -818,7 +839,7 @@ function renderInstellingen() {
 function saveTargets() {
   const r = id => { const n = num($('#' + id).value); return isFinite(n) && n > 0 ? n : 0; };
   state.targets = { k: r('tk'), c: r('tc'), p: r('tp'), f: r('tf') };
-  save(); toast('Doelen bewaard');
+  save(); toast('Goals saved');
 }
 
 async function exportData() {
@@ -845,12 +866,12 @@ function importData(e) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      if (!data || data.app !== 'voeding' || !data.state) throw new Error('geen back-up van deze app');
-      if (!confirm('Je huidige gegevens worden vervangen door deze back-up. Doorgaan?')) return;
+      if (!data || data.app !== 'voeding' || !data.state) throw new Error('not a backup of this app');
+      if (!confirm('Your current data will be replaced by this backup. Continue?')) return;
       state = Object.assign(defaultState(), data.state);
-      save(); render(); toast('Back-up teruggezet');
+      save(); render(); toast('Backup restored');
     } catch (err) {
-      toast('Kon de back-up niet lezen: ' + err.message);
+      toast('Could not read the backup: ' + err.message);
     }
   };
   reader.readAsText(file);

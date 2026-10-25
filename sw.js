@@ -1,6 +1,6 @@
 // Bewaart de app op het toestel zodat ze ook zonder internet werkt.
 // Verhoog VERSION bij elke wijziging zodat telefoons de nieuwe versie ophalen.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'voeding-' + VERSION;
 const FILES = [
   './',
