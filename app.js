@@ -933,7 +933,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.5.4 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5.5 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
