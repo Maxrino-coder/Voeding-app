@@ -196,7 +196,7 @@ h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
 .seg button { color: var(--muted); }
 .seg button.active { background: var(--card); color: #fff; }
 .brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 20px; font-weight: 400; gap: 10px; }
-.brand img { width: auto; height: 44px; border-radius: 0; }
+.brand img { width: auto; height: 33px; border-radius: 0; }
 .brand b { font-weight: 800; }
 .tag { background: var(--accent-soft); color: #fff; }
 .toast { background: #fff; color: #102349; font-weight: 600; }
