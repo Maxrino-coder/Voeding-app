@@ -309,16 +309,18 @@ function render() {
 }
 
 // ---------- Dagboek ----------
-function bar(val, goal, color) {
-  if (!goal) return '';
-  const pct = Math.min(100, (val / goal) * 100);
-  const over = val > goal * 1.0001;
+// Zonder doel toont het balkje het aandeel van deze macro in de kcal van vandaag.
+function bar(val, goal, color, share) {
+  if (!goal && share == null) return '';
+  const pct = goal ? Math.min(100, (val / goal) * 100) : share;
+  const over = goal && val > goal * 1.0001;
   return `<div class="bar ${over ? 'over' : ''}"><span style="width:${pct}%;background:${color}"></span></div>`;
 }
 
 function renderDag() {
   const t = dayTotals(cur);
-  const g = state.targets;
+  const g = { ...state.targets };
+  if (!g.k) g.k = 4 * (g.c || 0) + 4 * (g.p || 0) + 9 * (g.f || 0);
   const kcalRest = g.k ? g.k - t.k : null;
 
   let html = `
@@ -335,11 +337,11 @@ function renderDag() {
 
     <div class="card totals">
       <div class="totals-grid">
-        ${kcalRing(t.k, g.k)}
+        ${kcalRing(t, g.k)}
         <div class="macros-col">
-          ${macroBlock('Carbs', t.c, g.c, 'var(--c-carb)')}
-          ${macroBlock('Protein', t.p, g.p, 'var(--c-prot)')}
-          ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)')}
+          ${macroBlock('Carbs', t.c, g.c, 'var(--c-carb)', t.k ? (4 * t.c / t.k) * 100 : 0)}
+          ${macroBlock('Protein', t.p, g.p, 'var(--c-prot)', t.k ? (4 * t.p / t.k) * 100 : 0)}
+          ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)', t.k ? (9 * t.f / t.k) * 100 : 0)}
         </div>
       </div>
       ${g.k ? `<div class="kcal-left ${kcalRest < 0 ? 'over' : ''}">${kcalRest < 0 ? fmt(-kcalRest) + ' kcal over goal' : fmt(kcalRest) + ' kcal left'}</div>`
@@ -393,24 +395,36 @@ function visibleMeals(k) {
 }
 
 // Cirkel die vult naarmate je dichter bij je kcal-doel komt (half gevuld = helft van je doel).
-function kcalRing(val, goal) {
+// Het gevulde deel is verdeeld in de kleuren van carbs, protein en fat. Zonder doel is de cirkel
+// helemaal gevuld en toont hij alleen de verdeling.
+function kcalRing(t, goal) {
+  const val = t.k;
   const r = 54, c = 2 * Math.PI * r;
-  const frac = goal ? Math.min(1, val / goal) : 0;
+  const frac = goal ? Math.min(1, val / goal) : (val ? 1 : 0);
   const over = goal && val > goal * 1.0001;
+  const parts = [[4 * t.c, 'var(--c-carb)'], [4 * t.p, 'var(--c-prot)'], [9 * t.f, 'var(--c-fat)']];
+  let start = 0, arcs = '';
+  for (const [kc, color] of parts) {
+    const len = val ? (kc / val) * frac * c : 0;
+    if (len > 0.5) {
+      arcs += `<circle cx="64" cy="64" r="${r}" class="ring-fg" stroke="${color}" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-start}" transform="rotate(-90 64 64)"/>`;
+    }
+    start += len;
+  }
   return `<div class="ring">
     <svg viewBox="0 0 128 128" width="128" height="128" aria-hidden="true">
-      <circle cx="64" cy="64" r="${r}" class="ring-bg"/>
-      <circle cx="64" cy="64" r="${r}" class="ring-fg ${over ? 'over' : ''}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - frac)}" transform="rotate(-90 64 64)"/>
+      <circle cx="64" cy="64" r="${r}" class="ring-bg ${over ? 'over' : ''}"/>
+      ${arcs}
     </svg>
     <div class="ring-text"><span class="kcal-big">${fmt(val)}</span><span class="muted small">${goal ? `of ${fmt(goal)} kcal` : 'kcal'}</span></div>
   </div>`;
 }
 
-function macroBlock(name, val, goal, color) {
+function macroBlock(name, val, goal, color, share) {
   return `<div class="macro">
     <div class="name">${name}</div>
     <div class="val">${fmt(val)}${goal ? ` <span class="muted small">/ ${fmt(goal)} g</span>` : ' g'}</div>
-    ${bar(val, goal, color)}
+    ${bar(val, goal, color, share)}
   </div>`;
 }
 
@@ -841,8 +855,8 @@ function renderInstellingen() {
 
 // ---------- Goals ----------
 const GOAL_MACROS = [
-  { key: 'c', name: 'Carbs', color: 'var(--c-carb)', kcal: 4, max: 600, step: 5 },
-  { key: 'p', name: 'Protein', color: 'var(--c-prot)', kcal: 4, max: 400, step: 5 },
+  { key: 'c', name: 'Carbs', color: 'var(--c-carb)', kcal: 4, max: 600, step: 1 },
+  { key: 'p', name: 'Protein', color: 'var(--c-prot)', kcal: 4, max: 400, step: 1 },
   { key: 'f', name: 'Fat', color: 'var(--c-fat)', kcal: 9, max: 250, step: 1 },
 ];
 
