@@ -345,7 +345,7 @@ function renderDag() {
           ${macroBlock('Fat', t.f, g.f, 'var(--c-fat)', t.k ? (9 * t.f / t.k) * 100 : 0)}
         </div>
       </div>
-      ${g.k ? `<div class="kcal-left ${kcalRest < 0 ? 'over' : ''}">${kcalRest < 0 ? fmt(-kcalRest) + ' kcal over goal' : fmt(kcalRest) + ' kcal left'}</div>`
+      ${g.k ? `<div class="kcal-left ${kcalRest < 0 ? 'over' : ''}">${kcalRest < 0 ? fmt(-kcalRest) + ' kcal over goal' : fmt(kcalRest) + ' kcal left'} of ${fmt(g.k)} kcal</div>`
         : `<button class="btn block" data-act="gotogoals" style="margin-top:12px">🎯 Set your goals</button>`}
     </div>`;
 
@@ -906,7 +906,7 @@ function renderInstellingen() {
       </div>
       <input type="file" id="importfile" accept="application/json,.json" class="hidden">
     </div>
-    <p class="muted small" style="text-align:center">NTrition v0.5.1 · ${BUILTIN_FOODS.length} built-in foods</p>`;
+    <p class="muted small" style="text-align:center">NTrition v0.5.2 · ${BUILTIN_FOODS.length} built-in foods</p>`;
 
   $('#importfile').addEventListener('change', importData);
 }
