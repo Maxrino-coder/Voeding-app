@@ -1,4 +1,4 @@
-# NT Nutrition
+# NTrition
 
 Persoonlijk voedingsdagboek als installeerbare web-app (PWA). Werkt offline; alle gegevens blijven op het toestel.
 

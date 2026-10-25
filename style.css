@@ -1,33 +1,19 @@
 :root {
-  --bg: #f4f5f2;
-  --card: #ffffff;
-  --text: #1c1f1d;
-  --muted: #6b726d;
-  --line: #e3e6e1;
-  --accent: #1d3a6e;
-  --accent-soft: #e3e9f4;
-  --danger: #c0392b;
-  --c-kcal: #1f7a4d;
-  --c-carb: #d08a1e;
-  --c-prot: #2f6fb5;
-  --c-fat: #a2489c;
-  --over: #c0392b;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121413;
-    --card: #1c1f1d;
-    --text: #eceeea;
-    --muted: #9aa29c;
-    --line: #2c302d;
-    --accent: #7fa6ec;
-    --accent-soft: #1c2840;
-    --c-kcal: #3fb57a;
-    --c-carb: #e6a640;
-    --c-prot: #5b9be0;
-    --c-fat: #c975c2;
-    --over: #ef6b5d;
-  }
+  /* NTrition: marineblauw met helder wit, fris en bijna klinisch */
+  --bg: #102349;
+  --card: #18305c;
+  --text: #ffffff;
+  --muted: #c3cfe6;
+  --line: #2a4475;
+  --accent: #8cc8ff;
+  --accent-soft: #23407a;
+  --danger: #ff8a80;
+  --c-kcal: #8cc8ff;
+  --c-carb: #f2b24c;
+  --c-prot: #5fb0ff;
+  --c-fat: #d18ce0;
+  --over: #ff8a80;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -37,6 +23,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-size: 16px;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   padding-bottom: calc(70px + env(safe-area-inset-bottom));
 }
@@ -189,3 +177,34 @@ label.field input, label.field select {
 .dom-carb { background: var(--c-carb); }
 .dom-protein { background: var(--c-prot); }
 .dom-fat { background: var(--c-fat); }
+
+/* Dikkere, duidelijkere witte tekst */
+h1, h2, .kcal-big, .e-kcal, .macro .val, .preview .v { font-weight: 800; }
+.entries li .e-name, .list .f-name { font-weight: 650; }
+.btn { color: #fff; }
+.btn.primary { background: #ffffff; color: #102349; }
+.btn.ghost { color: var(--muted); }
+.btn.danger { color: var(--danger); }
+.card { box-shadow: none; border: 1px solid var(--line); }
+.iconbtn { box-shadow: none; border: 1px solid var(--line); color: #fff; }
+.search, label.field input, label.field select { background: #0d1d3d; color: #fff; border-color: var(--line); }
+.search::placeholder, input::placeholder { color: #8fa1c4; }
+.tabbar { background: #0d1d3d; border-top-color: var(--line); }
+.tabbar button { color: var(--muted); }
+.tabbar button.active { color: #fff; }
+.seg { background: #0d1d3d; }
+.seg button { color: var(--muted); }
+.seg button.active { background: var(--card); color: #fff; }
+.brand { color: #fff; text-transform: none; letter-spacing: .01em; font-size: 20px; font-weight: 500; }
+.brand b { font-weight: 800; }
+.tag { background: var(--accent-soft); color: #fff; }
+.toast { background: #fff; color: #102349; font-weight: 600; }
+.dom { color: #102349; }
+.dom-sm { font-size: 10px; padding: 1px 7px; margin: 0 0 0 4px; vertical-align: 2px; }
+
+/* Rangschikking van de macro's per meal */
+.ranking { margin-top: 8px; display: grid; gap: 4px; }
+.rank-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.rank-row .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.rank-row .pct { margin-left: auto; font-variant-numeric: tabular-nums; }
+.rank-row.top { color: #fff; font-weight: 700; font-size: 14px; }
