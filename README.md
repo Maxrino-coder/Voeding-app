@@ -1,4 +1,4 @@
-# Voeding
+# NT Nutrition
 
 Persoonlijk voedingsdagboek als installeerbare web-app (PWA). Werkt offline; alle gegevens blijven op het toestel.
 
@@ -16,3 +16,5 @@ zeven producten is het portiegewicht afgeleid uit de opgegeven waarden per porti
 gewicht daar niet mee klopte.
 
 Na een wijziging: verhoog `VERSION` in `sw.js` zodat geïnstalleerde apps de update ophalen.
+
+Het app-icoon wordt gemaakt uit `icons/icon-bron.html` (SVG, wit op marineblauw).

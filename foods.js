@@ -1,7 +1,7 @@
 // Ingebouwde voedingsmiddelen. Waarden per 100 g (k = kcal = 4·KH + 4·eiwit + 9·vet, c = koolhydraten, p = eiwit, f = vet).
 // Jumbo-producten komen uit "Productinformatie bake-off broodjes en snacks" (versie 23-09-2025).
 const BUILTIN_FOODS = [
-  {"id": "n-ei", "name": "Ei", "brand": "", "k": 126.2, "c": 0, "p": 11.67, "f": 8.83, "portions": [{"n": "ei", "g": 60}]},
+  {"id": "n-ei", "name": "Eieren", "brand": "", "k": 126.2, "c": 0, "p": 11.67, "f": 8.83, "portions": [{"n": "ei", "g": 60}], "alias": "ei eitje eitjes"},
   {"id": "n-kipkalkoengehakt", "name": "Kip-kalkoen gehakt", "brand": "", "k": 115.7, "c": 0, "p": 21.5, "f": 3.3, "portions": []},
   {"id": "n-skyr", "name": "Skyr nature", "brand": "", "k": 61.8, "c": 4, "p": 11, "f": 0.2, "portions": []},
   {"id": "n-confituur-aardbei", "name": "Confituur aardbeien", "brand": "", "k": 243.4, "c": 60, "p": 0.4, "f": 0.2, "portions": []},
