@@ -2,12 +2,13 @@
 
 // ---------- Opslag ----------
 const STORE_KEY = 'voeding.v1';
-const MEALS = [
-  { id: 'ontbijt', name: 'Ontbijt' },
-  { id: 'lunch', name: 'Lunch' },
-  { id: 'diner', name: 'Diner' },
-  { id: 'snacks', name: 'Tussendoortjes' },
-];
+const MEALS = [1, 2, 3, 4, 5, 6].map(n => ({ id: 'm' + n, name: 'Meal ' + n }));
+const MIN_MEALS = 3; // altijd zichtbaar; meer via "+ Meal toevoegen"
+
+// Calorieën altijd uit de macro's: 4 kcal per g koolhydraten en eiwit, 9 per g vet.
+function kcalOf(x) {
+  return 4 * (x.c || 0) + 4 * (x.p || 0) + 9 * (x.f || 0);
+}
 
 function defaultState() {
   return {
@@ -23,9 +24,20 @@ function defaultState() {
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return Object.assign(defaultState(), JSON.parse(raw));
+    if (raw) return migrate(Object.assign(defaultState(), JSON.parse(raw)));
   } catch (e) { /* begin leeg */ }
   return defaultState();
+}
+
+// Eerste versie had benoemde maaltijden; zet die om naar Meal 1-4.
+function migrate(st) {
+  const old = { ontbijt: 'm1', lunch: 'm2', diner: 'm3', snacks: 'm4' };
+  for (const day of Object.values(st.log)) {
+    for (const [from, to] of Object.entries(old)) {
+      if (day[from]) { day[to] = (day[to] || []).concat(day[from]); delete day[from]; }
+    }
+  }
+  return st;
 }
 
 let state = loadState();
@@ -125,7 +137,7 @@ function isBuiltin(id) {
 // Waarden voor een hoeveelheid in gram, uit waarden per 100 g.
 function scale(per, g) {
   const r = g / 100;
-  return { k: per.k * r, c: per.c * r, p: per.p * r, f: per.f * r };
+  return { k: kcalOf(per) * r, c: per.c * r, p: per.p * r, f: per.f * r };
 }
 
 function sum(list) {
@@ -161,10 +173,10 @@ function dayHasEntries(k) {
 function foodSub(f) {
   const parts = [];
   if (f.brand) parts.push(esc(f.brand));
-  parts.push(`${fmt(f.k)} kcal / 100 g`);
+  parts.push(`${fmt(kcalOf(f))} kcal / 100 g`);
   if (f.portions && f.portions.length) {
     const p = f.portions[0];
-    parts.push(`1 ${esc(p.n)} = ${fmt(p.g)} g (${fmt(f.k * p.g / 100)} kcal)`);
+    parts.push(`1 ${esc(p.n)} = ${fmt(p.g)} g (${fmt(kcalOf(f) * p.g / 100)} kcal)`);
   }
   return parts.join(' · ');
 }
@@ -257,7 +269,7 @@ function renderDag() {
       </div>
     </div>`;
 
-  for (const m of MEALS) {
+  for (const m of MEALS.slice(0, visibleMeals(cur))) {
     const entries = mealEntries(cur, m.id);
     const mt = sum(entries.map(entryTotals));
     html += `
@@ -280,6 +292,10 @@ function renderDag() {
       </div>`;
   }
 
+  const shown = visibleMeals(cur);
+  if (shown < MEALS.length) {
+    html += `<button class="btn block" data-act="addmeal" style="margin-bottom:12px">+ ${MEALS[shown].name} toevoegen</button>`;
+  }
   if (dayHasEntries(cur)) {
     html += `<button class="btn ghost block" data-act="copyday">Hele dag kopiëren naar…</button>`;
   }
@@ -288,6 +304,14 @@ function renderDag() {
   $('#datepick').addEventListener('change', e => {
     if (e.target.value) { cur = e.target.value; render(); }
   });
+}
+
+// Toon minstens MIN_MEALS maaltijden, en tot de laatste die iets bevat.
+const extraMeals = {};
+function visibleMeals(k) {
+  let n = Math.max(MIN_MEALS, extraMeals[k] || 0);
+  MEALS.forEach((m, i) => { if (mealEntries(k, m.id).length) n = Math.max(n, i + 1); });
+  return Math.min(n, MEALS.length);
 }
 
 function macroBlock(name, val, goal, color) {
@@ -309,6 +333,7 @@ view.addEventListener('click', e => {
     const entry = mealEntries(cur, el.dataset.meal).find(x => x.id === el.dataset.id);
     if (entry) openQty({ entry, meal: el.dataset.meal });
   }
+  else if (act === 'addmeal') { extraMeals[cur] = visibleMeals(cur) + 1; render(); }
   else if (act === 'copymeal') openCopy(el.dataset.meal);
   else if (act === 'copyday') openCopy(null);
   else if (act === 'prevweek') { weekOffset--; render(); }
@@ -410,7 +435,7 @@ function openQty({ food, entry, meal, back }) {
     </div>
     <div class="card">
       <h2>${esc(f.name)}</h2>
-      <div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(per.k)} kcal · KH ${fmt(per.c, 1)} · E ${fmt(per.p, 1)} · V ${fmt(per.f, 1)} per 100 g</div>
+      <div class="muted small">${f.brand ? esc(f.brand) + ' · ' : ''}${fmt(kcalOf(per))} kcal · KH ${fmt(per.c, 1)} · E ${fmt(per.p, 1)} · V ${fmt(per.f, 1)} per 100 g</div>
     </div>
     <div class="card">
       <div class="row2">
@@ -633,9 +658,8 @@ function openFoodEditor(food, opts = {}) {
         <label class="field"><span>Koolhydraten (g)</span><input id="fc" inputmode="decimal" value="${v(f.c)}"></label>
         <label class="field"><span>Eiwit (g)</span><input id="fp" inputmode="decimal" value="${v(f.p)}"></label>
         <label class="field"><span>Vet (g)</span><input id="ff" inputmode="decimal" value="${v(f.f)}"></label>
-        <label class="field"><span>Calorieën (kcal)</span><input id="fk" inputmode="decimal" value="${v(f.k)}" placeholder="leeg = berekenen"></label>
       </div>
-      <p class="muted small" style="margin-top:0">Laat je calorieën leeg, dan berekent de app ze uit de macro's (4 kcal per gram koolhydraten en eiwit, 9 per gram vet).</p>
+      <p class="muted small" style="margin-top:0">Calorieën worden berekend uit de macro's: 4 kcal per gram koolhydraten en eiwit, 9 per gram vet.</p>
     </div>
     ${!isNew ? `<div class="card">
       ${builtin && state.foods[f.id] ? '<button class="btn block" data-s="reset" style="margin-bottom:8px">Originele waarden terugzetten</button>' : ''}
@@ -654,7 +678,7 @@ function openFoodEditor(food, opts = {}) {
       return;
     }
     const factor = basisEl.value === 'portie' ? pg / 100 : 100 / pg;
-    for (const id of ['fc', 'fp', 'ff', 'fk']) {
+    for (const id of ['fc', 'fp', 'ff']) {
       const el = $('#' + id, sheet), n = num(el.value);
       if (isFinite(n)) el.value = fmt(n * factor, 2);
     }
@@ -680,8 +704,6 @@ function openFoodEditor(food, opts = {}) {
       const name = $('#fname', sheet).value.trim();
       if (!name) { toast('Geef een naam'); return; }
       const c = num($('#fc', sheet).value) || 0, p = num($('#fp', sheet).value) || 0, fat = num($('#ff', sheet).value) || 0;
-      let k = num($('#fk', sheet).value);
-      if (!isFinite(k)) k = c * 4 + p * 4 + fat * 9;
       const pn = $('#pname', sheet).value.trim(), pg = num($('#pg', sheet).value);
       const hasPortion = pg > 0;
       const factor = basisEl.value === 'portie' && hasPortion ? 100 / pg : 1;
@@ -689,9 +711,10 @@ function openFoodEditor(food, opts = {}) {
       const saved = {
         id: isNew ? uid('c') : f.id,
         name, brand: $('#fbrand', sheet).value.trim(),
-        k: Math.round(k * factor * 10) / 10, c: r2(c), p: r2(p), f: r2(fat),
+        c: r2(c), p: r2(p), f: r2(fat),
         portions: hasPortion ? [{ n: pn || 'portie', g: pg }] : [],
       };
+      saved.k = Math.round(kcalOf(saved) * 10) / 10;
       state.foods[saved.id] = saved;
       save(); closeSheet();
       toast('Bewaard');
